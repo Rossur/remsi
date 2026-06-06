@@ -1,0 +1,12 @@
+{
+  "tickers": [
+    { "symbol": "GC=F", "name": "Gold Futures (COMEX)" },
+    { "symbol": "SI=F", "name": "Silver Futures (COMEX)" }
+  ],
+  "intervals": ["5m", "15m"],
+  "rsiPeriod": 14,
+  "thresholds": {
+    "oversold": 30,
+    "overbought": 70
+  }
+}

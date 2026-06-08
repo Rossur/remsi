@@ -1,9 +1,21 @@
 {
   "tickers": [
-    { "symbol": "GC=F", "name": "Gold Futures (COMEX)" },
-    { "symbol": "SI=F", "name": "Silver Futures (COMEX)" }
+    {
+      "symbol": "GC=F",
+      "name": "Gold Futures (COMEX)"
+    },
+    {
+      "symbol": "SI=F",
+      "name": "Silver Futures (COMEX)"
+    }
   ],
-  "intervals": ["5m", "15m"],
+  "intervals": [
+    "5m",
+    "15m",
+    "1h",
+    "daily",
+    "weekly"
+  ],
   "rsiPeriod": 14,
   "thresholds": {
     "oversold": 30,

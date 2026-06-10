@@ -5,6 +5,19 @@ import fs from 'fs/promises';
 import path from 'path';
 
 export default async function handler(req, res) {
+  // Enforce CRON_SECRET check if configured
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers.authorization;
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const querySecret = urlObj.searchParams.get('secret');
+    const token = authHeader ? authHeader.replace('Bearer ', '') : querySecret;
+
+    if (token !== cronSecret) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+  }
+
   try {
     const configPath = path.resolve(process.cwd(), 'config.json');
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'));

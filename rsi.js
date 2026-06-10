@@ -306,8 +306,8 @@ export function runBacktest(dataPoints, overbought, oversold, startingCapital = 
 
     let macdSignal = 'HOLD';
     if (macdHist !== null && prevMacdHist !== null && macdHist !== undefined && prevMacdHist !== undefined) {
-      if (macdHist > prevMacdHist) macdSignal = 'BUY';
-      else if (macdHist < prevMacdHist) macdSignal = 'SELL';
+      if (macdHist > prevMacdHist && macdHist > 0) macdSignal = 'BUY';
+      else if (macdHist < prevMacdHist && macdHist < 0) macdSignal = 'SELL';
     }
 
     let emaSignal = 'HOLD';
@@ -326,12 +326,14 @@ export function runBacktest(dataPoints, overbought, oversold, startingCapital = 
     let signal = 'HOLD';
     const isOversold = (rsiSignal === 'BUY' || bbSignal === 'BUY');
     const isOverbought = (rsiSignal === 'SELL' || bbSignal === 'SELL');
-    const momentumUp = (macdSignal === 'BUY');
-    const momentumDown = (macdSignal === 'SELL');
-
-    if (isOversold && momentumUp) {
+    
+    // Improved logic: 
+    // Buy when oversold and price crosses above EMA (trend reversal confirmed)
+    // Sell when overbought or price crosses below EMA (trend reversal down)
+    
+    if (isOversold && emaSignal === 'BUY') {
       signal = 'BUY';
-    } else if (isOverbought && momentumDown) {
+    } else if (isOverbought || (position !== null && emaSignal === 'SELL')) {
       signal = 'SELL';
     }
 

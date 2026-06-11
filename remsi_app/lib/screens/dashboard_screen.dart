@@ -359,31 +359,41 @@ class DashboardScreen extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          // Ticker Symbol Column
+          // Ticker Symbol Column (Clickable)
           Expanded(
             flex: 4,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  symbol,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                ref.read(settingsProvider.notifier).updateSymbol(symbol);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChartScreen()),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    symbol,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _getSymbolFriendlyName(symbol),
-                  style: const TextStyle(
-                    color: Colors.white30,
-                    fontSize: 9,
+                  const SizedBox(height: 2),
+                  Text(
+                    _getSymbolFriendlyName(symbol),
+                    style: const TextStyle(
+                      color: Colors.white30,
+                      fontSize: 9,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 

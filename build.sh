@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Configure Git to trust all directories in this builder container
+git config --global --add safe.directory '*'
+
 FLUTTER_VERSION="3.10.6"
 FLUTTER_TAR="flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/${FLUTTER_TAR}"

@@ -19,6 +19,13 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
   bool _showBB = false;
   bool _showEMA = true;
 
+  // Mobile Chart Interaction Optimizations
+  double? _zoomStartIndex;
+  int? _hoveredIndex;
+  String? _initializedForKey;
+  bool _rsiExpanded = true;
+  bool _macdExpanded = true;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +102,17 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
     );
   }
 
+  // Helper: Double getters to manage visible data windows
+  double getMinX(int dataLength) {
+    if (dataLength <= 30) return 0.0;
+    return _zoomStartIndex ?? 0.0;
+  }
+
+  double getMaxX(int dataLength) {
+    if (dataLength <= 30) return (dataLength - 1).toDouble();
+    return (getMinX(dataLength) + 30.0);
+  }
+
   // CHARTS TAB
   Widget _buildChartsTab(HistoryResponse response) {
     if (response.dataPoints.isEmpty) {
@@ -102,9 +120,60 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
     }
 
     final data = response.dataPoints;
-    final minPrice = data.map((d) => d.close).reduce((a, b) => a < b ? a : b) * 0.99;
-    final maxPrice = data.map((d) => d.close).reduce((a, b) => a > b ? a : b) * 1.01;
     final settings = ref.watch(settingsProvider);
+
+    // Initialize horizontal scroll to the end (latest bars) if symbol or interval changes
+    final currentKey = '${settings.selectedSymbol}_${settings.selectedInterval}';
+    if (_zoomStartIndex == null || _initializedForKey != currentKey) {
+      _initializedForKey = currentKey;
+      _zoomStartIndex = (data.length - 30).toDouble().clamp(0.0, double.infinity);
+      _hoveredIndex = null;
+    }
+
+    final doubleMinX = getMinX(data.length);
+    final doubleMaxX = getMaxX(data.length);
+
+    // Calculate Y scale dynamically for visible price window
+    final int startIdx = doubleMinX.toInt().clamp(0, data.length - 1);
+    final int endIdx = doubleMaxX.toInt().clamp(0, data.length - 1);
+    final visibleData = data.sublist(startIdx, endIdx + 1);
+
+    double minPrice = 0.0;
+    double maxPrice = 0.0;
+    if (visibleData.isNotEmpty) {
+      final closes = visibleData.map((d) => d.close).toList();
+      if (_showEMA) {
+        closes.addAll(visibleData.where((d) => d.ema != null).map((d) => d.ema!));
+      }
+      if (_showBB) {
+        closes.addAll(visibleData.where((d) => d.bbUpper != null).map((d) => d.bbUpper!));
+        closes.addAll(visibleData.where((d) => d.bbLower != null).map((d) => d.bbLower!));
+      }
+      minPrice = closes.reduce((a, b) => a < b ? a : b) * 0.998;
+      maxPrice = closes.reduce((a, b) => a > b ? a : b) * 1.002;
+    } else {
+      minPrice = data.map((d) => d.close).reduce((a, b) => a < b ? a : b) * 0.99;
+      maxPrice = data.map((d) => d.close).reduce((a, b) => a > b ? a : b) * 1.01;
+    }
+
+    // Calculate MACD scale symmetrically for visible window
+    double minMacd = -1.0;
+    double maxMacd = 1.0;
+    if (visibleData.isNotEmpty) {
+      final List<double> macdVals = [];
+      for (final d in visibleData) {
+        if (d.macd != null) macdVals.add(d.macd!);
+        if (d.macdSignal != null) macdVals.add(d.macdSignal!);
+        if (d.macdHist != null) macdVals.add(d.macdHist!);
+      }
+      if (macdVals.isNotEmpty) {
+        final rawMin = macdVals.reduce((a, b) => a < b ? a : b);
+        final rawMax = macdVals.reduce((a, b) => a > b ? a : b);
+        final absMax = rawMin.abs() > rawMax.abs() ? rawMin.abs() : rawMax.abs();
+        minMacd = -absMax * 1.15;
+        maxMacd = absMax * 1.15;
+      }
+    }
 
     // Build unique symbol list including selected one to prevent dropdown assertions
     final dropdownSymbols = {'GC=F', 'SI=F', settings.selectedSymbol}.toList();
@@ -116,7 +185,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
         // 0. QUICK CONTROLS CARD
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          margin: const EdgeInsets.only(bottom: 20),
+          margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
             color: const Color(0x99131926),
             borderRadius: BorderRadius.circular(12),
@@ -176,6 +245,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           ),
         ),
 
+        // Live Readout HUD Sticky Panel
+        _buildHUDPanel(data, settings.selectedSymbol, settings.selectedInterval),
+
         // Chart Controls Toggles
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -202,151 +274,468 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        Container(
-          height: 250,
-          padding: const EdgeInsets.only(right: 16, top: 16),
-          decoration: BoxDecoration(
-            color: const Color(0x99131926),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: LineChart(
-            LineChartData(
-              gridData: const FlGridData(show: true, drawVerticalLine: false),
-              titlesData: _buildTitlesData(data),
-              borderData: FlBorderData(show: false),
-              minY: minPrice,
-              maxY: maxPrice,
-              lineBarsData: _buildPriceLines(data),
-              lineTouchData: LineTouchData(
-                touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: const Color(0xFF1E1E2F),
-                  getTooltipItems: (touchedSpots) {
-                    return touchedSpots.map((spot) {
-                      return LineTooltipItem(
-                        '\$${spot.y.toStringAsFixed(2)}',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final chartWidth = constraints.maxWidth - 45 - 16;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _zoomStartIndex = (_zoomStartIndex ?? (data.length - 30).toDouble()) -
+                      details.delta.dx * (30.0 / chartWidth);
+                  _zoomStartIndex = _zoomStartIndex!.clamp(
+                    0.0,
+                    (data.length - 30).toDouble().clamp(0.0, double.infinity),
+                  );
+
+                  final localX = details.localPosition.dx;
+                  final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                  _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                        0,
+                        data.length - 1,
                       );
-                    }).toList();
-                  },
+                });
+              },
+              onTapDown: (details) {
+                setState(() {
+                  final localX = details.localPosition.dx;
+                  final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                  _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                        0,
+                        data.length - 1,
+                      );
+                });
+              },
+              child: Container(
+                height: 250,
+                padding: const EdgeInsets.only(right: 16, top: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0x99131926),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: true, drawVerticalLine: false),
+                    titlesData: _buildTitlesData(data, doubleMinX, doubleMaxX),
+                    borderData: FlBorderData(show: false),
+                    minX: doubleMinX,
+                    maxX: doubleMaxX,
+                    minY: minPrice,
+                    maxY: maxPrice,
+                    lineBarsData: _buildPriceLines(data),
+                    extraLinesData: ExtraLinesData(
+                      verticalLines: _hoveredIndex != null
+                          ? [
+                              VerticalLine(
+                                  x: _hoveredIndex!.toDouble(),
+                                  color: Colors.white.withOpacity(0.25),
+                                  strokeWidth: 1.5,
+                                  dashArray: [4, 4]),
+                            ]
+                          : [],
+                    ),
+                    lineTouchData: const LineTouchData(enabled: false),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
         const SizedBox(height: 24),
 
-        // 2. RSI CHART CARD
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'RSI Indicator',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            Text(
-              'Latest: ${data.last.rsi?.toStringAsFixed(1) ?? 'N/A'}',
-              style: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 150,
-          padding: const EdgeInsets.only(right: 16, top: 16),
-          decoration: BoxDecoration(
-            color: const Color(0x99131926),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+        // 2. RSI CHART CARD (Collapsible Accordion)
+        _buildCollapsibleCard(
+          title: 'RSI Indicator',
+          subtitle: 'Latest: ${data.last.rsi?.toStringAsFixed(1) ?? 'N/A'}',
+          isExpanded: _rsiExpanded,
+          onToggle: () => setState(() => _rsiExpanded = !_rsiExpanded),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final chartWidth = constraints.maxWidth - 45 - 16;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragUpdate: (details) {
+                  setState(() {
+                    _zoomStartIndex = (_zoomStartIndex ?? (data.length - 30).toDouble()) -
+                        details.delta.dx * (30.0 / chartWidth);
+                    _zoomStartIndex = _zoomStartIndex!.clamp(
+                      0.0,
+                      (data.length - 30).toDouble().clamp(0.0, double.infinity),
+                    );
+
+                    final localX = details.localPosition.dx;
+                    final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                    _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                          0,
+                          data.length - 1,
+                        );
+                  });
+                },
+                onTapDown: (details) {
+                  setState(() {
+                    final localX = details.localPosition.dx;
+                    final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                    _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                          0,
+                          data.length - 1,
+                        );
+                  });
+                },
+                child: Container(
+                  height: 150,
+                  padding: const EdgeInsets.only(right: 16, top: 16, bottom: 8),
+                  child: LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: 10,
+                        checkToShowHorizontalLine: (value) => value == 30 || value == 70 || value == 50,
+                      ),
+                      titlesData: _buildTitlesData(data, doubleMinX, doubleMaxX),
+                      borderData: FlBorderData(show: false),
+                      minX: doubleMinX,
+                      maxX: doubleMaxX,
+                      minY: 10,
+                      maxY: 90,
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: data
+                              .asMap()
+                              .entries
+                              .where((e) => e.value.rsi != null)
+                              .map((e) => FlSpot(e.key.toDouble(), e.value.rsi!))
+                              .toList(),
+                          isCurved: true,
+                          barWidth: 2,
+                          color: const Color(0xFF8B5CF6),
+                          dotData: const FlDotData(show: false),
+                        ),
+                      ],
+                      extraLinesData: ExtraLinesData(
+                        verticalLines: _hoveredIndex != null
+                            ? [
+                                VerticalLine(
+                                  x: _hoveredIndex!.toDouble(),
+                                  color: Colors.white.withOpacity(0.25),
+                                  strokeWidth: 1.5,
+                                  dashArray: [4, 4],
+                                ),
+                              ]
+                            : [],
+                        horizontalLines: [
+                          HorizontalLine(
+                            y: ref.read(settingsProvider).overbought.toDouble(),
+                            color: const Color(0x66EF4444),
+                            strokeWidth: 1.5,
+                            dashArray: [5, 5],
+                          ),
+                          HorizontalLine(
+                            y: ref.read(settingsProvider).oversold.toDouble(),
+                            color: const Color(0x6622C55E),
+                            strokeWidth: 1.5,
+                            dashArray: [5, 5],
+                          ),
+                        ],
+                      ),
+                      lineTouchData: const LineTouchData(enabled: false),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-          child: LineChart(
-            LineChartData(
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: 10,
-                checkToShowHorizontalLine: (value) => value == 30 || value == 70 || value == 50,
+        ),
+
+        // 3. MACD OSCILLATOR CARD (Collapsible Accordion)
+        _buildCollapsibleCard(
+          title: 'MACD Oscillator',
+          subtitle: data.last.macd != null
+              ? 'MACD: ${data.last.macd!.toStringAsFixed(2)} / Sig: ${data.last.macdSignal!.toStringAsFixed(2)}'
+              : '',
+          isExpanded: _macdExpanded,
+          onToggle: () => setState(() => _macdExpanded = !_macdExpanded),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final chartWidth = constraints.maxWidth - 45 - 16;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragUpdate: (details) {
+                  setState(() {
+                    _zoomStartIndex = (_zoomStartIndex ?? (data.length - 30).toDouble()) -
+                        details.delta.dx * (30.0 / chartWidth);
+                    _zoomStartIndex = _zoomStartIndex!.clamp(
+                      0.0,
+                      (data.length - 30).toDouble().clamp(0.0, double.infinity),
+                    );
+
+                    final localX = details.localPosition.dx;
+                    final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                    _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                          0,
+                          data.length - 1,
+                        );
+                  });
+                },
+                onTapDown: (details) {
+                  setState(() {
+                    final localX = details.localPosition.dx;
+                    final ratio = (localX / chartWidth).clamp(0.0, 1.0);
+                    _hoveredIndex = (doubleMinX + ratio * (doubleMaxX - doubleMinX)).round().clamp(
+                          0,
+                          data.length - 1,
+                        );
+                  });
+                },
+                child: Container(
+                  height: 180,
+                  padding: const EdgeInsets.only(right: 16, top: 16, bottom: 8),
+                  child: LineChart(
+                    LineChartData(
+                      gridData: const FlGridData(show: true, drawVerticalLine: false),
+                      titlesData: _buildTitlesData(data, doubleMinX, doubleMaxX),
+                      borderData: FlBorderData(show: false),
+                      minX: doubleMinX,
+                      maxX: doubleMaxX,
+                      minY: minMacd,
+                      maxY: maxMacd,
+                      lineBarsData: _buildMacdLines(data),
+                      extraLinesData: ExtraLinesData(
+                        verticalLines: _hoveredIndex != null
+                            ? [
+                                VerticalLine(
+                                  x: _hoveredIndex!.toDouble(),
+                                  color: Colors.white.withOpacity(0.25),
+                                  strokeWidth: 1.5,
+                                  dashArray: [4, 4],
+                                ),
+                              ]
+                            : [],
+                      ),
+                      lineTouchData: const LineTouchData(enabled: false),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Live HUD Readout Panel
+  Widget _buildHUDPanel(List<HistoryDataPoint> data, String symbol, String interval) {
+    int index = _hoveredIndex ?? (data.length - 1);
+    if (index < 0 || index >= data.length) {
+      index = data.length - 1;
+    }
+    final pt = data[index];
+    final date = DateTime.fromMillisecondsSinceEpoch(pt.time * 1000);
+    final dateStr = DateFormat(interval == 'daily' || interval == 'weekly' ? 'yyyy-MM-dd' : 'MM-dd HH:mm').format(date);
+
+    final prevClose = index > 0 ? data[index - 1].close : pt.close;
+    final isUp = pt.close >= prevClose;
+    final priceColor = isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF131926).withOpacity(0.85),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _hoveredIndex != null ? const Color(0xFF3B82F6) : const Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _hoveredIndex != null ? 'LIVE INSPECT' : 'LATEST DATA',
+                    style: TextStyle(
+                      color: _hoveredIndex != null ? const Color(0xFF3B82F6) : const Color(0xFF22C55E),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  if (_hoveredIndex != null) ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _hoveredIndex = null;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'RESET',
+                          style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              titlesData: _buildTitlesData(data),
-              borderData: FlBorderData(show: false),
-              minY: 10,
-              maxY: 90,
-              lineBarsData: [
-                LineChartBarData(
-                  spots: data
-                      .asMap()
-                      .entries
-                      .where((e) => e.value.rsi != null)
-                      .map((e) => FlSpot(e.key.toDouble(), e.value.rsi!))
-                      .toList(),
-                  isCurved: true,
-                  barWidth: 2,
-                  color: const Color(0xFF8B5CF6),
-                  dotData: const FlDotData(show: false),
+              Text(
+                dateStr,
+                style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildHUDMetric('Price', '\$${pt.close.toStringAsFixed(2)}', priceColor),
+                _buildHUDDivider(),
+                _buildHUDMetric(
+                  'EMA9',
+                  pt.ema != null ? '\$${pt.ema!.toStringAsFixed(2)}' : 'N/A',
+                  const Color(0xFF8B5CF6),
+                ),
+                _buildHUDDivider(),
+                _buildHUDMetric(
+                  'RSI',
+                  pt.rsi != null ? pt.rsi!.toStringAsFixed(1) : 'N/A',
+                  pt.rsi != null && pt.rsi! >= 70
+                      ? const Color(0xFFEF4444)
+                      : (pt.rsi != null && pt.rsi! <= 30 ? const Color(0xFF22C55E) : const Color(0xFF06B6D4)),
+                ),
+                _buildHUDDivider(),
+                _buildHUDMetric(
+                  'MACD',
+                  pt.macd != null ? pt.macd!.toStringAsFixed(2) : 'N/A',
+                  const Color(0xFF06B6D4),
+                ),
+                _buildHUDDivider(),
+                _buildHUDMetric(
+                  'Signal',
+                  pt.macdSignal != null ? pt.macdSignal!.toStringAsFixed(2) : 'N/A',
+                  const Color(0xFFF59E0B),
+                ),
+                _buildHUDDivider(),
+                _buildHUDMetric(
+                  'Hist',
+                  pt.macdHist != null ? pt.macdHist!.toStringAsFixed(2) : 'N/A',
+                  pt.macdHist != null && pt.macdHist! >= 0 ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
                 ),
               ],
-              extraLinesData: ExtraLinesData(
-                horizontalLines: [
-                  HorizontalLine(
-                    y: ref.read(settingsProvider).overbought.toDouble(),
-                    color: const Color(0x66EF4444), // red line for overbought
-                    strokeWidth: 1.5,
-                    dashArray: [5, 5],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHUDMetric(String label, String value, Color valueColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(color: valueColor, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Outfit'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHUDDivider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      width: 1,
+      height: 20,
+      color: Colors.white12,
+    );
+  }
+
+  // Collapsible Card Widget for indicator sections
+  Widget _buildCollapsibleCard({
+    required String title,
+    required String subtitle,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0x99131926),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
+                      ],
+                    ],
                   ),
-                  HorizontalLine(
-                    y: ref.read(settingsProvider).oversold.toDouble(),
-                    color: const Color(0x6622C55E), // green line for oversold
-                    strokeWidth: 1.5,
-                    dashArray: [5, 5],
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: Colors.white70,
+                    size: 20,
                   ),
                 ],
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-
-        // 3. MACD OSCILLATOR CARD
-        const Text(
-          'MACD Oscillator',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 180,
-          padding: const EdgeInsets.only(right: 16, top: 16),
-          decoration: BoxDecoration(
-            color: const Color(0x99131926),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: LineChart(
-            LineChartData(
-              gridData: const FlGridData(show: true, drawVerticalLine: false),
-              titlesData: _buildTitlesData(data),
-              borderData: FlBorderData(show: false),
-              lineBarsData: _buildMacdLines(data),
-              lineTouchData: LineTouchData(
-                touchTooltipData: LineTouchTooltipData(
-                  tooltipBgColor: const Color(0xFF1E1E2F),
-                  getTooltipItems: (touchedSpots) {
-                    if (touchedSpots.isEmpty) return [];
-                    final idx = touchedSpots.first.spotIndex;
-                    if (idx < 0 || idx >= data.length) return [];
-                    final pt = data[idx];
-                    return [
-                      LineTooltipItem(
-                        'MACD: ${pt.macd?.toStringAsFixed(2) ?? 'N/A'}\nSignal: ${pt.macdSignal?.toStringAsFixed(2) ?? 'N/A'}\nHist: ${pt.macdHist?.toStringAsFixed(2) ?? 'N/A'}',
-                        const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      )
-                    ];
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+          if (isExpanded) ...[
+            const Divider(color: Colors.white10, height: 1),
+            child,
+          ],
+        ],
+      ),
     );
   }
 
@@ -488,7 +877,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
   }
 
   // Helper: Titles Data for FlChart
-  FlTitlesData _buildTitlesData(List<HistoryDataPoint> data) {
+  FlTitlesData _buildTitlesData(List<HistoryDataPoint> data, double minX, double maxX) {
     return FlTitlesData(
       leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -509,7 +898,12 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           showTitles: true,
           getTitlesWidget: (value, meta) {
             final idx = value.toInt();
-            if (idx >= 0 && idx < data.length && idx % (data.length ~/ 4) == 0) {
+            final minVisible = minX.toInt();
+            final maxVisible = maxX.toInt();
+            final visibleCount = maxVisible - minVisible;
+            final step = visibleCount > 0 ? (visibleCount / 4).round() : 1;
+
+            if (idx >= minVisible && idx <= maxVisible && (idx - minVisible) % step == 0) {
               final date = DateTime.fromMillisecondsSinceEpoch(data[idx].time * 1000);
               return Padding(
                 padding: const EdgeInsets.only(top: 4.0),

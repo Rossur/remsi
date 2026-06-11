@@ -24,11 +24,20 @@ flutter config --enable-web
 echo "=== [BUILD] Building Flutter Web App ==="
 cd remsi_app
 flutter pub get
-flutter build web --release
+flutter build web --release --base-href "/app/"
 
 echo "=== [BUILD] Preparing Deployment Folder ==="
 cd ..
 mkdir -p dist
-cp -r remsi_app/build/web/* dist/
+
+# 1. Copy the original premium HTML/JS dashboard & its icons to the root of dist
+cp index.html dist/
+if [ -d "icons" ]; then
+  cp -r icons dist/
+fi
+
+# 2. Copy the compiled Flutter Web PWA to the /app/ subfolder
+mkdir -p dist/app
+cp -r remsi_app/build/web/* dist/app/
 
 echo "=== [BUILD] Success! ==="

@@ -153,7 +153,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
               lineBarsData: _buildPriceLines(data),
               lineTouchData: LineTouchData(
                 touchTooltipData: LineTouchTooltipData(
-                  getTooltipColor: (spot) => const Color(0xFF1E1E2F),
+                  tooltipBgColor: const Color(0xFF1E1E2F),
                   getTooltipItems: (touchedSpots) {
                     return touchedSpots.map((spot) {
                       return LineTooltipItem(
@@ -171,7 +171,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
 
         // 2. RSI CHART CARD
         Row(
-          mainAxisAlignment: MainAxisAlignment.between,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
               'RSI Indicator',
@@ -384,7 +384,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
                     '${isProfit ? '+' : ''}\$${summary.netProfit.toStringAsFixed(2)}',
                     style: TextStyle(
                       color: isProfit ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
-                      fontWeight: FontWeight.extrabold,
+                      fontWeight: FontWeight.w800,
                       fontSize: 20,
                     ),
                   ),
@@ -449,7 +449,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
                   border: Border.all(color: Colors.white10),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -639,13 +639,15 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
-      style: const TextStyle(
-        color: Color(0xFF06B6D4),
-        fontSize: 13,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.0,
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Color(0xFF06B6D4),
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.0,
+        ),
       ),
-      child: Text(title.toUpperCase()),
     );
   }
 
@@ -653,7 +655,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.between,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           Text(

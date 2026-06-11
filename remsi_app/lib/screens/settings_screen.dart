@@ -183,13 +183,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
-      style: const TextStyle(
-        color: Color(0xFF06B6D4), // Cyan header
-        fontSize: 13,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.0,
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Color(0xFF06B6D4), // Cyan header
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.0,
+        ),
       ),
-      child: Text(title.toUpperCase()),
     );
   }
 
@@ -207,7 +209,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.between,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               label,
@@ -215,7 +217,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             Text(
               displayVal,
-              style: TextStyle(color: activeColor, fontSize: 14, fontWeight: FontWeight.extrabold),
+              style: TextStyle(color: activeColor, fontSize: 14, fontWeight: FontWeight.w800),
             ),
           ],
         ),

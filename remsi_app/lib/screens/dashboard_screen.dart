@@ -34,7 +34,7 @@ class DashboardScreen extends ConsumerWidget {
               children: [
                 // Header Row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.between,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +44,7 @@ class DashboardScreen extends ConsumerWidget {
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontSize: 28,
-                            fontWeight: FontWeight.extrabold,
+                            fontWeight: FontWeight.w800,
                             foreground: Paint()
                               ..shader = const LinearGradient(
                                 colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
@@ -169,7 +169,7 @@ class DashboardScreen extends ConsumerWidget {
                                     'RSI: ${item.rsi.toStringAsFixed(1)}',
                                     style: TextStyle(
                                       color: statusColor,
-                                      fontWeight: FontWeight.extrabold,
+                                      fontWeight: FontWeight.w800,
                                       fontSize: 16,
                                     ),
                                   ),

@@ -104,11 +104,78 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
     final data = response.dataPoints;
     final minPrice = data.map((d) => d.close).reduce((a, b) => a < b ? a : b) * 0.99;
     final maxPrice = data.map((d) => d.close).reduce((a, b) => a > b ? a : b) * 1.01;
+    final settings = ref.watch(settingsProvider);
+
+    // Build unique symbol list including selected one to prevent dropdown assertions
+    final dropdownSymbols = {'GC=F', 'SI=F', settings.selectedSymbol}.toList();
 
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16.0),
       children: [
+        // 0. QUICK CONTROLS CARD
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: const Color(0x99131926),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Row(
+            children: [
+              // Symbol Dropdown Selector
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: settings.selectedSymbol,
+                    dropdownColor: const Color(0xFF131926),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    items: dropdownSymbols.map((sym) {
+                      String label = sym;
+                      if (sym == 'GC=F') label = 'Gold (GC=F)';
+                      else if (sym == 'SI=F') label = 'Silver (SI=F)';
+                      return DropdownMenuItem(
+                        value: sym,
+                        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(settingsProvider.notifier).updateSymbol(val);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              Container(width: 1, height: 24, color: Colors.white12),
+              const SizedBox(width: 12),
+              // Interval Dropdown Selector
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: settings.selectedInterval,
+                    dropdownColor: const Color(0xFF131926),
+                    icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                    items: const [
+                      DropdownMenuItem(value: '5m', child: Text('5m Timeframe', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: '15m', child: Text('15m Timeframe', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: '1h', child: Text('1h Timeframe', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: 'daily', child: Text('Daily', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                      DropdownMenuItem(value: 'weekly', child: Text('Weekly', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(settingsProvider.notifier).updateInterval(val);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // Chart Controls Toggles
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -237,8 +304,109 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
             ),
           ),
         ),
+        const SizedBox(height: 24),
+
+        // 3. MACD OSCILLATOR CARD
+        const Text(
+          'MACD Oscillator',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 180,
+          padding: const EdgeInsets.only(right: 16, top: 16),
+          decoration: BoxDecoration(
+            color: const Color(0x99131926),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: LineChart(
+            LineChartData(
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+              titlesData: _buildTitlesData(data),
+              borderData: FlBorderData(show: false),
+              lineBarsData: _buildMacdLines(data),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  tooltipBgColor: const Color(0xFF1E1E2F),
+                  getTooltipItems: (touchedSpots) {
+                    if (touchedSpots.isEmpty) return [];
+                    final idx = touchedSpots.first.spotIndex;
+                    if (idx < 0 || idx >= data.length) return [];
+                    final pt = data[idx];
+                    return [
+                      LineTooltipItem(
+                        'MACD: ${pt.macd?.toStringAsFixed(2) ?? 'N/A'}\nSignal: ${pt.macdSignal?.toStringAsFixed(2) ?? 'N/A'}\nHist: ${pt.macdHist?.toStringAsFixed(2) ?? 'N/A'}',
+                        const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      )
+                    ];
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  List<LineChartBarData> _buildMacdLines(List<HistoryDataPoint> data) {
+    final List<LineChartBarData> lines = [];
+
+    // 1. MACD Line
+    lines.add(
+      LineChartBarData(
+        spots: data
+            .asMap()
+            .entries
+            .where((e) => e.value.macd != null)
+            .map((e) => FlSpot(e.key.toDouble(), e.value.macd!))
+            .toList(),
+        isCurved: true,
+        barWidth: 2,
+        color: const Color(0xFF06B6D4), // Cyan
+        dotData: const FlDotData(show: false),
+      ),
+    );
+
+    // 2. Signal Line
+    lines.add(
+      LineChartBarData(
+        spots: data
+            .asMap()
+            .entries
+            .where((e) => e.value.macdSignal != null)
+            .map((e) => FlSpot(e.key.toDouble(), e.value.macdSignal!))
+            .toList(),
+        isCurved: true,
+        barWidth: 2,
+        color: const Color(0xFFF59E0B), // Orange
+        dotData: const FlDotData(show: false),
+      ),
+    );
+
+    // 3. Histogram bars (drawn as individual thin line segments)
+    for (int i = 0; i < data.length; i++) {
+      final histVal = data[i].macdHist;
+      if (histVal == null) continue;
+
+      final color = histVal >= 0 ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+
+      lines.add(
+        LineChartBarData(
+          spots: [
+            FlSpot(i.toDouble(), 0),
+            FlSpot(i.toDouble(), histVal),
+          ],
+          isCurved: false,
+          barWidth: 2,
+          color: color.withOpacity(0.6),
+          dotData: const FlDotData(show: false),
+        ),
+      );
+    }
+
+    return lines;
   }
 
   // Helper: Price Line Bars Builder

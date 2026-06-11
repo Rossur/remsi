@@ -88,7 +88,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onPressed: () async {
                           final secret = _secretController.text.trim();
                           await settingsNotifier.updateCronSecret(secret);
-                          ref.read(cronSecretProvider.notifier).state = secret;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Vercel CRON_SECRET updated locally.')),
                           );

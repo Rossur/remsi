@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/market_data.dart';
+import 'settings_provider.dart';
 
 // Helper to resolve the correct backend API URL dynamically
 String getBaseUrl() {
@@ -79,14 +80,11 @@ class ApiService {
 // Riverpod Provider for ApiService
 final apiServiceProvider = Provider((ref) => ApiService());
 
-// Riverpod StateProvider for the Cron Secret (saved settings)
-final cronSecretProvider = StateProvider<String>((ref) => '');
-
 // Riverpod FutureProvider for check overview
 final checkResultsProvider = FutureProvider<TickerCheckResponse>((ref) async {
   final api = ref.watch(apiServiceProvider);
-  final secret = ref.watch(cronSecretProvider);
-  return api.fetchCheckResults(secret: secret);
+  final settings = ref.watch(settingsProvider);
+  return api.fetchCheckResults(secret: settings.cronSecret);
 });
 
 // Parameter class for fetching history dynamically

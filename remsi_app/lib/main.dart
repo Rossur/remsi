@@ -21,11 +21,13 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: const Color(0xFF8B5CF6),
-        scaffoldBackgroundColor: const Color(0xFF0F0F1A),
+        scaffoldBackgroundColor: const Color(0xFF0B0E17),
+        cardColor: const Color(0x99131926),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF8B5CF6),
           secondary: Color(0xFF06B6D4),
-          surface: Color(0xFF1E1E2F),
+          surface: Color(0x99131926),
+          error: Color(0xFFEF4444),
         ),
         fontFamily: 'Outfit',
       ),

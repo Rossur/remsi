@@ -50,7 +50,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           '${settings.selectedSymbol} (${settings.selectedInterval})',
           style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
         ),
-        backgroundColor: const Color(0xFF0F0F1A),
+        backgroundColor: const Color(0xFF0B0E17),
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,
@@ -65,7 +65,7 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
         ),
       ),
       body: Container(
-        color: const Color(0xFF0F0F1A),
+        color: const Color(0xFF0B0E17),
         child: historyAsync.when(
           data: (response) {
             return TabBarView(
@@ -139,9 +139,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           height: 250,
           padding: const EdgeInsets.only(right: 16, top: 16),
           decoration: BoxDecoration(
-            color: const Color(0x1F2B2B40),
+            color: const Color(0x99131926),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: LineChart(
             LineChartData(
@@ -188,9 +188,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
           height: 150,
           padding: const EdgeInsets.only(right: 16, top: 16),
           decoration: BoxDecoration(
-            color: const Color(0x1F2B2B40),
+            color: const Color(0x99131926),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: LineChart(
             LineChartData(
@@ -370,9 +370,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0x1F2B2B40),
+            color: const Color(0x99131926),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: Column(
             children: [
@@ -444,9 +444,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141424),
+                  color: const Color(0x66131926),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(color: Colors.white.withOpacity(0.05)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -541,9 +541,9 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0x1F2B2B40),
+            color: const Color(0x99131926),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: Column(
             children: [

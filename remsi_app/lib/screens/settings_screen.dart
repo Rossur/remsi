@@ -47,7 +47,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF0F0F1A),
+          color: Color(0xFF0B0E17),
         ),
         child: ListView(
           physics: const BouncingScrollPhysics(),
@@ -58,9 +58,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0x1F2B2B40),
+                color: const Color(0x99131926),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,9 +112,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0x1F2B2B40),
+                color: const Color(0x99131926),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
               ),
               child: Column(
                 children: [

@@ -5,8 +5,9 @@ import fs from 'fs/promises';
 import path from 'path';
 
 export default async function handler(req, res) {
-  // Enforce CRON_SECRET check if configured
   const cronSecret = process.env.CRON_SECRET;
+  let shouldSendAlert = true;
+
   if (cronSecret) {
     const authHeader = req.headers.authorization;
     const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
     const token = authHeader ? authHeader.replace('Bearer ', '') : querySecret;
 
     if (token !== cronSecret) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
+      shouldSendAlert = false;
     }
   }
 
@@ -36,10 +37,14 @@ export default async function handler(req, res) {
 
           if (rsi <= config.thresholds.oversold) {
             status = 'oversold';
-            sendAlert(`${ticker.name} RSI on ${interval} is OVERSOLD: ${rsi.toFixed(2)}`);
+            if (shouldSendAlert) {
+              sendAlert(`${ticker.name} RSI on ${interval} is OVERSOLD: ${rsi.toFixed(2)}`);
+            }
           } else if (rsi >= config.thresholds.overbought) {
             status = 'overbought';
-            sendAlert(`${ticker.name} RSI on ${interval} is OVERBOUGHT: ${rsi.toFixed(2)}`);
+            if (shouldSendAlert) {
+              sendAlert(`${ticker.name} RSI on ${interval} is OVERBOUGHT: ${rsi.toFixed(2)}`);
+            }
           }
 
           results.push({

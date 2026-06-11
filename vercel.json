@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "bash build.sh",
+  "outputDirectory": "dist",
   "functions": {
     "api/**/*.js": {
       "includeFiles": "config.json"

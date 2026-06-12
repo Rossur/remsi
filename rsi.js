@@ -419,3 +419,57 @@ export function runBacktest(dataPoints, overbought, oversold, startingCapital = 
     }
   };
 }
+
+export function calculateConfluenceScore(rsiVal, closeVal, emaVal, bbUpper, bbLower, macdHist, prevMacdHist) {
+  let score = 5.5; // neutral base
+
+  // 1. RSI contribution (neutral around 50)
+  if (rsiVal !== null && rsiVal !== undefined) {
+    const rsiDelta = 50 - rsiVal;
+    score += (rsiDelta / 50) * 3.0;
+  }
+
+  // 2. EMA contribution
+  if (closeVal !== null && emaVal !== null && emaVal !== undefined) {
+    if (closeVal > emaVal) {
+      score += 1.5;
+    } else {
+      score -= 1.5;
+    }
+  }
+
+  // 3. Bollinger Bands contribution
+  if (closeVal !== null && bbUpper !== null && bbLower !== null && bbUpper !== undefined && bbLower !== undefined) {
+    const width = bbUpper - bbLower;
+    if (width > 0) {
+      const pct = (closeVal - bbLower) / width;
+      score += (0.5 - pct) * 4.0;
+    }
+  }
+
+  // 4. MACD contribution
+  if (macdHist !== null && macdHist !== undefined) {
+    if (prevMacdHist !== null && prevMacdHist !== undefined) {
+      if (macdHist > 0) {
+        if (macdHist > prevMacdHist) {
+          score += 1.5;
+        } else {
+          score += 0.5;
+        }
+      } else {
+        if (macdHist < prevMacdHist) {
+          score -= 1.5;
+        } else {
+          score -= 0.5;
+        }
+      }
+    } else {
+      score += macdHist > 0 ? 0.75 : -0.75;
+    }
+  }
+
+  // Bound between 1.0 and 10.0
+  score = Math.max(1.0, Math.min(10.0, score));
+  return parseFloat(score.toFixed(1));
+}
+

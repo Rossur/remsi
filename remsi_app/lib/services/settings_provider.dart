@@ -9,6 +9,10 @@ class UserSettings {
   final int overbought;
   final int oversold;
   final String cronSecret;
+  final List<String> watchlist;
+  final String fcmToken;
+  final String discordWebhook;
+  final String phoneNumber;
 
   UserSettings({
     required this.selectedSymbol,
@@ -17,6 +21,10 @@ class UserSettings {
     required this.overbought,
     required this.oversold,
     required this.cronSecret,
+    required this.watchlist,
+    required this.fcmToken,
+    required this.discordWebhook,
+    required this.phoneNumber,
   });
 
   UserSettings copyWith({
@@ -26,6 +34,10 @@ class UserSettings {
     int? overbought,
     int? oversold,
     String? cronSecret,
+    List<String>? watchlist,
+    String? fcmToken,
+    String? discordWebhook,
+    String? phoneNumber,
   }) {
     return UserSettings(
       selectedSymbol: selectedSymbol ?? this.selectedSymbol,
@@ -34,6 +46,10 @@ class UserSettings {
       overbought: overbought ?? this.overbought,
       oversold: oversold ?? this.oversold,
       cronSecret: cronSecret ?? this.cronSecret,
+      watchlist: watchlist ?? this.watchlist,
+      fcmToken: fcmToken ?? this.fcmToken,
+      discordWebhook: discordWebhook ?? this.discordWebhook,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
     );
   }
 }
@@ -47,6 +63,10 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
           overbought: 70,
           oversold: 30,
           cronSecret: '',
+          watchlist: ['GC=F', 'SI=F', 'CL=F', 'AAPL', 'MSFT', 'GOOG', 'TSLA'],
+          fcmToken: '',
+          discordWebhook: '',
+          phoneNumber: '',
         )) {
     _loadFromPrefs();
   }
@@ -57,6 +77,10 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
   static const _keyOverbought = 'remsi_overbought';
   static const _keyOversold = 'remsi_oversold';
   static const _keySecret = 'remsi_cron_secret';
+  static const _keyWatchlist = 'remsi_watchlist';
+  static const _keyFcmToken = 'remsi_fcm_token';
+  static const _keyDiscordWebhook = 'remsi_discord_webhook';
+  static const _keyPhoneNumber = 'remsi_phone_number';
 
   Future<void> _loadFromPrefs() async {
     try {
@@ -68,6 +92,10 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
         overbought: prefs.getInt(_keyOverbought) ?? 70,
         oversold: prefs.getInt(_keyOversold) ?? 30,
         cronSecret: prefs.getString(_keySecret) ?? '',
+        watchlist: prefs.getStringList(_keyWatchlist) ?? ['GC=F', 'SI=F', 'CL=F', 'AAPL', 'MSFT', 'GOOG', 'TSLA'],
+        fcmToken: prefs.getString(_keyFcmToken) ?? '',
+        discordWebhook: prefs.getString(_keyDiscordWebhook) ?? '',
+        phoneNumber: prefs.getString(_keyPhoneNumber) ?? '',
       );
     } catch (e) {
       // SharedPreferences might fail to instantiate in some web sandbox edge cases
@@ -105,7 +133,41 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySecret, secret);
   }
+
+  Future<void> addToWatchlist(String symbol) async {
+    final cleanSymbol = symbol.trim().toUpperCase();
+    if (cleanSymbol.isEmpty || state.watchlist.contains(cleanSymbol)) return;
+    
+    final updated = List<String>.from(state.watchlist)..add(cleanSymbol);
+    state = state.copyWith(watchlist: updated);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyWatchlist, updated);
+  }
+
+  Future<void> removeFromWatchlist(String symbol) async {
+    final updated = List<String>.from(state.watchlist)..remove(symbol);
+    state = state.copyWith(watchlist: updated);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_keyWatchlist, updated);
+  }
+
+  Future<void> updateNotifierSettings({
+    String? fcmToken,
+    String? discordWebhook,
+    String? phoneNumber,
+  }) async {
+    state = state.copyWith(
+      fcmToken: fcmToken ?? state.fcmToken,
+      discordWebhook: discordWebhook ?? state.discordWebhook,
+      phoneNumber: phoneNumber ?? state.phoneNumber,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    if (fcmToken != null) await prefs.setString(_keyFcmToken, fcmToken);
+    if (discordWebhook != null) await prefs.setString(_keyDiscordWebhook, discordWebhook);
+    if (phoneNumber != null) await prefs.setString(_keyPhoneNumber, phoneNumber);
+  }
 }
+
 
 // Riverpod provider for UserSettings StateNotifier
 final settingsProvider = StateNotifierProvider<UserSettingsNotifier, UserSettings>((ref) {

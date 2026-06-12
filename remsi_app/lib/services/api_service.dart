@@ -29,10 +29,27 @@ class ApiService {
   final String baseUrl = getBaseUrl();
 
   // Fetches quick overview results from /api/check
-  Future<TickerCheckResponse> fetchCheckResults({String? secret}) async {
-    final uri = Uri.parse('$baseUrl/api/check').replace(
-      queryParameters: secret != null && secret.isNotEmpty ? {'secret': secret} : null,
-    );
+  Future<TickerCheckResponse> fetchCheckResults({
+    String? secret,
+    List<String>? symbols,
+    String? fcmToken,
+    String? discordWebhook,
+    String? phoneNumber,
+    int? rsiPeriod,
+    int? overbought,
+    int? oversold,
+  }) async {
+    final Map<String, String> queryParams = {};
+    if (secret != null && secret.isNotEmpty) queryParams['secret'] = secret;
+    if (symbols != null && symbols.isNotEmpty) queryParams['symbols'] = symbols.join(',');
+    if (fcmToken != null && fcmToken.isNotEmpty) queryParams['fcmToken'] = fcmToken;
+    if (discordWebhook != null && discordWebhook.isNotEmpty) queryParams['discordWebhook'] = discordWebhook;
+    if (phoneNumber != null && phoneNumber.isNotEmpty) queryParams['phoneNumber'] = phoneNumber;
+    if (rsiPeriod != null) queryParams['rsiPeriod'] = rsiPeriod.toString();
+    if (overbought != null) queryParams['overbought'] = overbought.toString();
+    if (oversold != null) queryParams['oversold'] = oversold.toString();
+
+    final uri = Uri.parse('$baseUrl/api/check').replace(queryParameters: queryParams);
 
     try {
       final response = await http.get(uri);
@@ -84,7 +101,16 @@ final apiServiceProvider = Provider((ref) => ApiService());
 final checkResultsProvider = FutureProvider<TickerCheckResponse>((ref) async {
   final api = ref.watch(apiServiceProvider);
   final settings = ref.watch(settingsProvider);
-  return api.fetchCheckResults(secret: settings.cronSecret);
+  return api.fetchCheckResults(
+    secret: settings.cronSecret,
+    symbols: settings.watchlist,
+    fcmToken: settings.fcmToken,
+    discordWebhook: settings.discordWebhook,
+    phoneNumber: settings.phoneNumber,
+    rsiPeriod: settings.rsiPeriod,
+    overbought: settings.overbought,
+    oversold: settings.oversold,
+  );
 });
 
 // Parameter class for fetching history dynamically

@@ -13,17 +13,26 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _secretController;
+  late TextEditingController _watchlistController;
+  late TextEditingController _discordController;
+  late TextEditingController _phoneController;
 
   @override
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
     _secretController = TextEditingController(text: settings.cronSecret);
+    _watchlistController = TextEditingController();
+    _discordController = TextEditingController(text: settings.discordWebhook);
+    _phoneController = TextEditingController(text: settings.phoneNumber);
   }
 
   @override
   void dispose() {
     _secretController.dispose();
+    _watchlistController.dispose();
+    _discordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -101,6 +110,193 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const Text(
                     'Required to authorize manual refreshes if Vercel backend enforces a secret key.',
                     style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Watchlist Manager Section
+            _buildSectionHeader('Watchlist Tickers'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0x99131926),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _watchlistController,
+                          style: const TextStyle(color: Colors.white),
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: InputDecoration(
+                            hintText: 'Enter Symbol (e.g. AAPL, TSLA)',
+                            hintStyle: const TextStyle(color: Colors.white38),
+                            filled: true,
+                            fillColor: const Color(0xFF141424),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8B5CF6),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          final sym = _watchlistController.text.trim().toUpperCase();
+                          if (sym.isNotEmpty) {
+                            settingsNotifier.addToWatchlist(sym);
+                            _watchlistController.clear();
+                            ref.refresh(checkResultsProvider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Added $sym to watchlist.')),
+                            );
+                          }
+                        },
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: settings.watchlist.map((sym) {
+                      return Chip(
+                        label: Text(sym, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        backgroundColor: const Color(0xFF141424),
+                        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                        deleteIcon: const Icon(Icons.close, size: 14, color: Colors.redAccent),
+                        onDeleted: () {
+                          settingsNotifier.removeFromWatchlist(sym);
+                          ref.refresh(checkResultsProvider);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Removed $sym from watchlist.')),
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Notification Channels Section
+            _buildSectionHeader('Notification Channels'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0x99131926),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.08)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Discord Webhook URL',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _discordController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'https://discord.com/api/webhooks/...',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      filled: true,
+                      fillColor: const Color(0xFF141424),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'SMS Phone Number',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: '+1234567890 (with country code)',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      filled: true,
+                      fillColor: const Color(0xFF141424),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'FCM Device Token (APNs / Android Native)',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF141424),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            settings.fcmToken.isEmpty ? 'Waiting for Token dispatch...' : settings.fcmToken,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        final webhook = _discordController.text.trim();
+                        final phone = _phoneController.text.trim();
+                        await settingsNotifier.updateNotifierSettings(
+                          discordWebhook: webhook,
+                          phoneNumber: phone,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Alert configurations updated.')),
+                        );
+                        ref.refresh(checkResultsProvider);
+                      },
+                      child: const Text('Save Alert Options', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
                   ),
                 ],
               ),

@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/settings_provider.dart';
 import '../models/market_data.dart';
+import '../services/optimizer.dart';
+
 
 class ChartScreen extends ConsumerStatefulWidget {
   const ChartScreen({super.key});
@@ -26,10 +31,65 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
   bool _rsiExpanded = true;
   bool _macdExpanded = true;
 
+  // Paper Trading State
+  double _paperBalance = 10000.0;
+  double? _paperPositionEntry;
+  double _paperPositionShares = 0.0;
+  List<Map<String, dynamic>> _paperLedger = [];
+
+  Future<void> _loadPaperTradingState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _paperBalance = prefs.getDouble('paper_balance') ?? 10000.0;
+        _paperPositionEntry = prefs.getDouble('paper_position_entry');
+        _paperPositionShares = prefs.getDouble('paper_position_shares') ?? 0.0;
+        final ledgerRaw = prefs.getString('paper_ledger');
+        if (ledgerRaw != null) {
+          final List<dynamic> list = jsonDecode(ledgerRaw);
+          _paperLedger = list.map((item) => Map<String, dynamic>.from(item)).toList();
+        } else {
+          _paperLedger = [];
+        }
+      });
+    } catch (e) {
+      // Graceful fallback
+    }
+  }
+
+  Future<void> _savePaperTradingState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('paper_balance', _paperBalance);
+      if (_paperPositionEntry != null) {
+        await prefs.setDouble('paper_position_entry', _paperPositionEntry!);
+      } else {
+        await prefs.remove('paper_position_entry');
+      }
+      await prefs.setDouble('paper_position_shares', _paperPositionShares);
+      await prefs.setString('paper_ledger', jsonEncode(_paperLedger));
+    } catch (e) {
+      // Graceful fallback
+    }
+  }
+
+  void _showOptimizerDialog(List<HistoryDataPoint> data) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _OptimizerDialogWidget(
+          closes: data.map((d) => d.close).toList(),
+          settingsNotifier: ref.read(settingsProvider.notifier),
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadPaperTradingState();
   }
 
   @override
@@ -269,9 +329,34 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
         ),
 
         // 1. PRICE CHART CARD
-        const Text(
-          'Price Chart',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Price Chart',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            InkWell(
+              onTap: () => _showOptimizerDialog(data),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.bolt, color: Color(0xFF8B5CF6), size: 14),
+                    SizedBox(width: 4),
+                    Text('Optimize RSI', style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 11, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
@@ -521,6 +606,8 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
             },
           ),
         ),
+        const SizedBox(height: 24),
+        _buildPaperTradingCard(data[(_hoveredIndex ?? (data.length - 1)).clamp(0, data.length - 1)], settings.selectedSymbol),
       ],
     );
   }
@@ -1094,10 +1181,27 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
 
   // CONFLUENCE TAB
   Widget _buildConfluenceTab(HistoryResponse response) {
+    final pt = response.dataPoints[(_hoveredIndex ?? (response.dataPoints.length - 1)).clamp(0, response.dataPoints.length - 1)];
+    final score = pt.confluenceScore ?? 5.5;
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16.0),
       children: [
+        // RADIAL GAUGE CARD
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          margin: const EdgeInsets.only(bottom: 24),
+          decoration: BoxDecoration(
+            color: const Color(0x99131926),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Center(
+            child: ConfluenceGauge(score: score),
+          ),
+        ),
+
         // Technical Indicators Summary stats
         _buildSectionHeader('Confluence Metrics'),
         Container(
@@ -1228,4 +1332,578 @@ class _ChartScreenState extends ConsumerState<ChartScreen> with SingleTickerProv
       ),
     );
   }
+
+  Widget _buildPaperTradingCard(HistoryDataPoint pt, String symbol) {
+    final currentPrice = pt.close;
+    final bool hasPosition = _paperPositionEntry != null;
+    
+    double pnl = 0.0;
+    double returnPct = 0.0;
+    if (hasPosition) {
+      pnl = (currentPrice - _paperPositionEntry!) * _paperPositionShares;
+      returnPct = ((currentPrice - _paperPositionEntry!) / _paperPositionEntry!) * 100;
+    }
+    final bool isProfit = pnl >= 0;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0x99131926),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF06B6D4), size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'PAPER TRADING SIMULATOR',
+                    style: TextStyle(
+                      color: const Color(0xFF06B6D4),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+              TextButton(
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
+                onPressed: () {
+                  setState(() {
+                    _paperBalance = 10000.0;
+                    _paperPositionEntry = null;
+                    _paperPositionShares = 0.0;
+                    _paperLedger = [];
+                    _savePaperTradingState();
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Simulator reset to default capital.')),
+                  );
+                },
+                child: const Text('Reset', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Account Balance', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(hasPosition ? 0.0 : _paperBalance).toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Position Equity', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(hasPosition ? (currentPrice * _paperPositionShares) : 0.0).toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: hasPosition ? const Color(0xFF06B6D4) : Colors.white24,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          
+          if (hasPosition) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withOpacity(0.05)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Position Details', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Entry: \$${_paperPositionEntry!.toStringAsFixed(2)} (${_paperPositionShares.toStringAsFixed(3)} shares)',
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Unrealized PnL', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isProfit ? '+' : ''}\$${pnl.toStringAsFixed(2)} (${returnPct.toStringAsFixed(2)}%)',
+                        style: TextStyle(
+                          color: isProfit ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF22C55E),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: hasPosition ? null : () {
+                    setState(() {
+                      _paperPositionShares = _paperBalance / currentPrice;
+                      _paperPositionEntry = currentPrice;
+                      _paperBalance = 0.0;
+                      _savePaperTradingState();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Bought LONG position at \$${currentPrice.toStringAsFixed(2)}')),
+                    );
+                  },
+                  child: const Text('BUY LONG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: !hasPosition ? null : () {
+                    final finalPnl = (currentPrice - _paperPositionEntry!) * _paperPositionShares;
+                    setState(() {
+                      final rawBalance = currentPrice * _paperPositionShares;
+                      
+                      _paperLedger.add({
+                        'symbol': symbol,
+                        'entryPrice': _paperPositionEntry,
+                        'exitPrice': currentPrice,
+                        'shares': _paperPositionShares,
+                        'profit': finalPnl,
+                        'time': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                      });
+                      
+                      _paperBalance = rawBalance;
+                      _paperPositionEntry = null;
+                      _paperPositionShares = 0.0;
+                      
+                      _savePaperTradingState();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Position closed. PnL: \$${finalPnl.toStringAsFixed(2)}')),
+                    );
+                  },
+                  child: const Text('CLOSE POSITION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+          
+          if (_paperLedger.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white10),
+            const SizedBox(height: 8),
+            const Text(
+              'SIMULATION LEDGER',
+              style: TextStyle(color: Colors.white30, fontSize: 10, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                itemCount: _paperLedger.length,
+                itemBuilder: (context, idx) {
+                  final trade = _paperLedger[_paperLedger.length - 1 - idx];
+                  final bool profit = (trade['profit'] as num).toDouble() >= 0;
+                  final double profVal = (trade['profit'] as num).toDouble();
+                  final double entry = (trade['entryPrice'] as num).toDouble();
+                  final double exit = (trade['exitPrice'] as num).toDouble();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${trade['symbol']}: \$${entry.toStringAsFixed(1)} → \$${exit.toStringAsFixed(1)}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        ),
+                        Text(
+                          '${profit ? '+' : ''}\$${profVal.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: profit ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
+
+class ConfluenceGauge extends StatelessWidget {
+  final double score;
+
+  const ConfluenceGauge({super.key, required this.score});
+
+  @override
+  Widget build(BuildContext context) {
+    Color scoreColor;
+    String ratingText;
+
+    if (score >= 8.0) {
+      scoreColor = const Color(0xFF22C55E);
+      ratingText = 'STRONG BUY';
+    } else if (score >= 6.5) {
+      scoreColor = const Color(0xFF06B6D4);
+      ratingText = 'BUY';
+    } else if (score >= 4.5) {
+      scoreColor = const Color(0xFF94A3B8);
+      ratingText = 'NEUTRAL';
+    } else if (score >= 3.0) {
+      scoreColor = const Color(0xFFF97316);
+      ratingText = 'SELL';
+    } else {
+      scoreColor = const Color(0xFFEF4444);
+      ratingText = 'STRONG SELL';
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          width: 180,
+          height: 100,
+          child: CustomPaint(
+            painter: _GaugePainter(score: score, color: scoreColor),
+          ),
+        ),
+        Text(
+          score.toStringAsFixed(1),
+          style: TextStyle(
+            color: scoreColor,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Outfit',
+          ),
+        ),
+        Text(
+          ratingText,
+          style: TextStyle(
+            color: scoreColor.withOpacity(0.8),
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GaugePainter extends CustomPainter {
+  final double score;
+  final Color color;
+
+  _GaugePainter({required this.score, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height);
+    final radius = size.width / 2 - 10;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+
+    paint.color = Colors.white.withOpacity(0.08);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      pi,
+      pi,
+      false,
+      paint,
+    );
+
+    paint.color = color;
+    final double scorePct = ((score - 1.0) / 9.0).clamp(0.0, 1.0);
+    final double sweepAngle = scorePct * pi;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      pi,
+      sweepAngle,
+      false,
+      paint,
+    );
+
+    final needlePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final needleAngle = pi + sweepAngle;
+    final needleTip = Offset(
+      center.dx + radius * cos(needleAngle),
+      center.dy + radius * sin(needleAngle),
+    );
+
+    canvas.drawCircle(center, 6, needlePaint);
+    canvas.drawCircle(needleTip, 4, needlePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GaugePainter oldDelegate) {
+    return oldDelegate.score != score || oldDelegate.color != color;
+  }
+}
+
+class _OptimizerDialogWidget extends StatefulWidget {
+  final List<double> closes;
+  final UserSettingsNotifier settingsNotifier;
+
+  const _OptimizerDialogWidget({
+    required this.closes,
+    required this.settingsNotifier,
+  });
+
+  @override
+  State<_OptimizerDialogWidget> createState() => _OptimizerDialogWidgetState();
+}
+
+class _OptimizerDialogWidgetState extends State<_OptimizerDialogWidget> {
+  bool _expandedMode = false;
+  bool _running = false;
+  List<OptimizationResult> _results = [];
+  String _status = 'Ready to optimize.';
+
+  Future<void> _runOptimize() async {
+    setState(() {
+      _running = true;
+      _status = 'Running indicator calculations...';
+    });
+
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    try {
+      final results = OptimizerEngine.runOptimization(
+        closes: widget.closes,
+        expandedMode: _expandedMode,
+      );
+
+      setState(() {
+        _results = results;
+        _running = false;
+        _status = 'Scan complete. Found ${results.length} candidate combinations.';
+      });
+    } catch (e) {
+      setState(() {
+        _running = false;
+        _status = 'Optimization failed: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final best = _results.isNotEmpty ? _results.first : null;
+
+    return Dialog(
+      backgroundColor: const Color(0xFF131926),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'RSI Optimization Engine',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                )
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Find parameters that maximize return. Robustness Mode evaluates neighbor neighborhoods to avoid overfitting.',
+              style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Fast Scan', style: TextStyle(fontSize: 11)),
+                    selected: !_expandedMode,
+                    selectedColor: const Color(0xFF8B5CF6),
+                    backgroundColor: const Color(0xFF1E1E38),
+                    labelStyle: TextStyle(color: !_expandedMode ? Colors.white : Colors.white70),
+                    onSelected: (val) {
+                      if (!_running) setState(() => _expandedMode = false);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Robustness Scan', style: TextStyle(fontSize: 11)),
+                    selected: _expandedMode,
+                    selectedColor: const Color(0xFF8B5CF6),
+                    backgroundColor: const Color(0xFF1E1E38),
+                    labelStyle: TextStyle(color: _expandedMode ? Colors.white : Colors.white70),
+                    onSelected: (val) {
+                      if (!_running) setState(() => _expandedMode = true);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            if (_running) ...[
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFF8B5CF6)),
+                    SizedBox(height: 12),
+                    Text('Analyzing parameter matrix...', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                  ],
+                ),
+              )
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B5CF6),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _runOptimize,
+                  child: const Text('Start Optimization Scan', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ),
+            ],
+            
+            const SizedBox(height: 16),
+            Text(
+              _status,
+              style: const TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
+            ),
+            
+            if (best != null) ...[
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white10),
+              const SizedBox(height: 12),
+              const Text(
+                'RECOMMENDED PARAMETERS',
+                style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              ),
+              const SizedBox(height: 12),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildParamMetric('RSI Period', best.rsiPeriod.toString()),
+                  _buildParamMetric('Overbought', best.overbought.toString()),
+                  _buildParamMetric('Oversold', best.oversold.toString()),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildParamMetric('Est. Return', '${best.strategyReturn.toStringAsFixed(1)}%'),
+                  _buildParamMetric('Win Rate', '${best.winRate.toStringAsFixed(1)}%'),
+                  if (_expandedMode)
+                    _buildParamMetric('Robustness', '${best.robustnessScore.toStringAsFixed(1)}%'),
+                ],
+              ),
+              
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF06B6D4),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    widget.settingsNotifier.updateRsiPeriod(best.rsiPeriod);
+                    widget.settingsNotifier.updateThresholds(best.overbought, best.oversold);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Applied: RSI ${best.rsiPeriod}, OB ${best.overbought}, OS ${best.oversold}')),
+                    );
+                  },
+                  child: const Text('Apply Optimal Parameters', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParamMetric(String label, String val) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 9)),
+        const SizedBox(height: 2),
+        Text(val, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+      ],
+    );
+  }
+}
+

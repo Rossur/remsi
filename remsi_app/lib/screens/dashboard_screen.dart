@@ -11,8 +11,13 @@ class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   String _getSymbolFriendlyName(String symbol) {
-    if (symbol == 'GC=F') return 'Gold Futures (COMEX)';
-    if (symbol == 'SI=F') return 'Silver Futures (COMEX)';
+    if (symbol == 'GC=F') return 'Gold Futures';
+    if (symbol == 'SI=F') return 'Silver Futures';
+    if (symbol == 'CL=F') return 'Crude Oil Futures';
+    if (symbol == 'AAPL') return 'Apple Inc.';
+    if (symbol == 'MSFT') return 'Microsoft Corp.';
+    if (symbol == 'GOOG') return 'Alphabet Inc.';
+    if (symbol == 'TSLA') return 'Tesla Inc.';
     return symbol;
   }
 
@@ -354,6 +359,29 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildHeatmapRow(BuildContext context, WidgetRef ref, String symbol, List<CheckResult> results) {
     final timeframes = ['5m', '15m', '1h', 'daily', 'weekly'];
+    final settings = ref.watch(settingsProvider);
+
+    final selectedResult = results.firstWhere(
+      (r) => r.symbol == symbol && r.interval == settings.selectedInterval,
+      orElse: () => results.firstWhere(
+        (r) => r.symbol == symbol,
+        orElse: () => CheckResult(symbol: symbol, interval: '', close: 0.0, rsi: -1.0, confluenceScore: 5.5, status: 'normal'),
+      ),
+    );
+    final score = selectedResult.rsi >= 0 ? selectedResult.confluenceScore : 5.5;
+
+    Color scoreColor;
+    if (score >= 8.0) {
+      scoreColor = const Color(0xFF22C55E);
+    } else if (score >= 6.5) {
+      scoreColor = const Color(0xFF06B6D4);
+    } else if (score >= 4.5) {
+      scoreColor = const Color(0xFF94A3B8);
+    } else if (score >= 3.0) {
+      scoreColor = const Color(0xFFF97316);
+    } else {
+      scoreColor = const Color(0xFFEF4444);
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -374,13 +402,36 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    symbol,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        symbol,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      if (selectedResult.rsi >= 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: scoreColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: scoreColor.withOpacity(0.3), width: 1),
+                          ),
+                          child: Text(
+                            score.toStringAsFixed(1),
+                            style: TextStyle(
+                              color: scoreColor,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -405,7 +456,7 @@ class DashboardScreen extends ConsumerWidget {
               children: timeframes.map((tf) {
                 final item = results.firstWhere(
                   (r) => r.symbol == symbol && r.interval == tf,
-                  orElse: () => CheckResult(symbol: symbol, interval: tf, close: 0.0, rsi: -1.0, status: 'normal'),
+                  orElse: () => CheckResult(symbol: symbol, interval: tf, close: 0.0, rsi: -1.0, confluenceScore: 5.5, status: 'normal'),
                 );
                 return _buildHeatmapCell(context, ref, item);
               }).toList(),

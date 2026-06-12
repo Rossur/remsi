@@ -5,6 +5,7 @@ class CheckResult {
   final String interval;
   final double close;
   final double rsi;
+  final double confluenceScore;
   final String status; // 'normal', 'oversold', 'overbought'
 
   CheckResult({
@@ -12,6 +13,7 @@ class CheckResult {
     required this.interval,
     required this.close,
     required this.rsi,
+    required this.confluenceScore,
     required this.status,
   });
 
@@ -21,6 +23,7 @@ class CheckResult {
       interval: json['interval'] ?? '',
       close: double.tryParse(json['close']?.toString() ?? '0') ?? 0.0,
       rsi: double.tryParse(json['rsi']?.toString() ?? '0') ?? 0.0,
+      confluenceScore: double.tryParse(json['confluenceScore']?.toString() ?? '5.5') ?? 5.5,
       status: json['status'] ?? 'normal',
     );
   }
@@ -60,6 +63,7 @@ class HistoryDataPoint {
   final double? bbLower;
   final double? bbMiddle;
   final double? atr;
+  final double? confluenceScore;
 
   HistoryDataPoint({
     required this.time,
@@ -73,6 +77,7 @@ class HistoryDataPoint {
     this.bbLower,
     this.bbMiddle,
     this.atr,
+    this.confluenceScore,
   });
 
   factory HistoryDataPoint.fromJson(Map<String, dynamic> json) {
@@ -88,6 +93,7 @@ class HistoryDataPoint {
       bbLower: (json['bbLower'] as num?)?.toDouble(),
       bbMiddle: (json['bbMiddle'] as num?)?.toDouble(),
       atr: (json['atr'] as num?)?.toDouble(),
+      confluenceScore: (json['confluenceScore'] as num?)?.toDouble(),
     );
   }
 }

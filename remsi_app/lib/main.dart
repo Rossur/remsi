@@ -1,20 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'screens/dashboard_screen.dart';
+import 'services/settings_provider.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  String fcmToken = '';
+  try {
+    // Graceful initialization to prevent crashes on non-configured environments
+    await Firebase.initializeApp();
+    final messaging = FirebaseMessaging.instance;
+    await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+    fcmToken = await messaging.getToken() ?? '';
+    debugPrint("Retrieved FCM Token: $fcmToken");
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint("Foreground message: ${message.notification?.body}");
+    });
+  } catch (e) {
+    debugPrint("Firebase Messaging initialization bypassed: $e");
+  }
+
   runApp(
-    const ProviderScope(
-      child: MyApp(),
+    ProviderScope(
+      child: MyApp(initialFcmToken: fcmToken),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends ConsumerWidget {
+  final String initialFcmToken;
+  const MyApp({super.key, this.initialFcmToken = ''});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (initialFcmToken.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(settingsProvider.notifier).updateNotifierSettings(
+          fcmToken: initialFcmToken,
+        );
+      });
+    }
+
     return MaterialApp(
       title: 'REMSI Dashboard',
       debugShowCheckedModeBanner: false,

@@ -7,7 +7,8 @@ import {
   calculateBollingerBands, 
   calculateStandardDeviation, 
   scanDivergences,
-  runBacktest
+  runBacktest,
+  calculateConfluenceScore
 } from '../rsi.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -47,6 +48,15 @@ export default async function handler(req, res) {
 
     const dataPoints = [];
     for (let i = 0; i < closes.length; i++) {
+      const confScore = calculateConfluenceScore(
+        rsi[i],
+        closes[i],
+        ema9[i],
+        upperBand[i],
+        lowerBand[i],
+        macdHist[i],
+        i > 0 ? macdHist[i - 1] : null
+      );
       dataPoints.push({
         time: timestamps[i],
         close: parseFloat(closes[i].toFixed(2)),
@@ -58,7 +68,8 @@ export default async function handler(req, res) {
         bbUpper: upperBand[i] !== null && upperBand[i] !== undefined ? parseFloat(upperBand[i].toFixed(2)) : null,
         bbLower: lowerBand[i] !== null && lowerBand[i] !== undefined ? parseFloat(lowerBand[i].toFixed(2)) : null,
         bbMiddle: middleBand[i] !== null && middleBand[i] !== undefined ? parseFloat(middleBand[i].toFixed(2)) : null,
-        atr: atr[i] !== null && atr[i] !== undefined ? parseFloat(atr[i].toFixed(2)) : null
+        atr: atr[i] !== null && atr[i] !== undefined ? parseFloat(atr[i].toFixed(2)) : null,
+        confluenceScore: confScore
       });
     }
 

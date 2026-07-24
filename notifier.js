@@ -353,8 +353,9 @@ export async function dispatchAlert({ ticker, interval, rsiVal, confluenceScore,
 
 export function sendAlert(message) {
   console.log(`[LEGACY ALERT] ${message}`);
-  if (process.env.DEFAULT_DISCORD_WEBHOOK) {
-    fetch(process.env.DEFAULT_DISCORD_WEBHOOK, {
+  const webhook = process.env.DEFAULT_DISCORD_WEBHOOK || process.env.DISCORD_WEBHOOK;
+  if (webhook) {
+    fetch(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: message })

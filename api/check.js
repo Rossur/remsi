@@ -162,7 +162,7 @@ export default async function handler(req, res) {
               await enqueueAlert({
                 ...alertBase,
                 fcmToken: process.env.DEFAULT_FCM_TOKEN || null,
-                discordWebhook: process.env.DEFAULT_DISCORD_WEBHOOK || null,
+                discordWebhook: process.env.DEFAULT_DISCORD_WEBHOOK || process.env.DISCORD_WEBHOOK || null,
                 email: process.env.DEFAULT_EMAIL || null,
               });
             }

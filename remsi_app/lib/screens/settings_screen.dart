@@ -15,7 +15,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _secretController;
   late TextEditingController _watchlistController;
   late TextEditingController _discordController;
-  late TextEditingController _phoneController;
+  late TextEditingController _emailController;
 
   @override
   void initState() {
@@ -24,7 +24,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _secretController = TextEditingController(text: settings.cronSecret);
     _watchlistController = TextEditingController();
     _discordController = TextEditingController(text: settings.discordWebhook);
-    _phoneController = TextEditingController(text: settings.phoneNumber);
+    _emailController = TextEditingController(text: settings.email);
   }
 
   @override
@@ -32,7 +32,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _secretController.dispose();
     _watchlistController.dispose();
     _discordController.dispose();
-    _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -228,16 +228,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 16),
 
                   const Text(
-                    'SMS Phone Number',
+                    'Email Address',
                     style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: '+1234567890 (with country code)',
+                      hintText: 'your-email@example.com',
                       hintStyle: const TextStyle(color: Colors.white38),
                       filled: true,
                       fillColor: const Color(0xFF141424),
@@ -285,10 +285,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       onPressed: () async {
                         final webhook = _discordController.text.trim();
-                        final phone = _phoneController.text.trim();
+                        final email = _emailController.text.trim();
                         await settingsNotifier.updateNotifierSettings(
                           discordWebhook: webhook,
-                          phoneNumber: phone,
+                          email: email,
                         );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Alert configurations updated.')),

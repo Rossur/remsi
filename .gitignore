@@ -1,1 +1,7 @@
 /imp plan
+node_modules/
+queue.json
+.env
+.env.local
+.env.*
+*.log

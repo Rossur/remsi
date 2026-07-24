@@ -12,7 +12,7 @@ class UserSettings {
   final List<String> watchlist;
   final String fcmToken;
   final String discordWebhook;
-  final String phoneNumber;
+  final String email;
 
   UserSettings({
     required this.selectedSymbol,
@@ -24,7 +24,7 @@ class UserSettings {
     required this.watchlist,
     required this.fcmToken,
     required this.discordWebhook,
-    required this.phoneNumber,
+    required this.email,
   });
 
   UserSettings copyWith({
@@ -37,7 +37,7 @@ class UserSettings {
     List<String>? watchlist,
     String? fcmToken,
     String? discordWebhook,
-    String? phoneNumber,
+    String? email,
   }) {
     return UserSettings(
       selectedSymbol: selectedSymbol ?? this.selectedSymbol,
@@ -49,7 +49,7 @@ class UserSettings {
       watchlist: watchlist ?? this.watchlist,
       fcmToken: fcmToken ?? this.fcmToken,
       discordWebhook: discordWebhook ?? this.discordWebhook,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
     );
   }
 }
@@ -66,7 +66,7 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
           watchlist: ['GC=F', 'SI=F', 'CL=F', 'AAPL', 'MSFT', 'GOOG', 'TSLA'],
           fcmToken: '',
           discordWebhook: '',
-          phoneNumber: '',
+          email: '',
         )) {
     _loadFromPrefs();
   }
@@ -80,7 +80,7 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
   static const _keyWatchlist = 'remsi_watchlist';
   static const _keyFcmToken = 'remsi_fcm_token';
   static const _keyDiscordWebhook = 'remsi_discord_webhook';
-  static const _keyPhoneNumber = 'remsi_phone_number';
+  static const _keyEmail = 'remsi_email';
 
   Future<void> _loadFromPrefs() async {
     try {
@@ -95,7 +95,7 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
         watchlist: prefs.getStringList(_keyWatchlist) ?? ['GC=F', 'SI=F', 'CL=F', 'AAPL', 'MSFT', 'GOOG', 'TSLA'],
         fcmToken: prefs.getString(_keyFcmToken) ?? '',
         discordWebhook: prefs.getString(_keyDiscordWebhook) ?? '',
-        phoneNumber: prefs.getString(_keyPhoneNumber) ?? '',
+        email: prefs.getString(_keyEmail) ?? '',
       );
     } catch (e) {
       // SharedPreferences might fail to instantiate in some web sandbox edge cases
@@ -154,17 +154,17 @@ class UserSettingsNotifier extends StateNotifier<UserSettings> {
   Future<void> updateNotifierSettings({
     String? fcmToken,
     String? discordWebhook,
-    String? phoneNumber,
+    String? email,
   }) async {
     state = state.copyWith(
       fcmToken: fcmToken ?? state.fcmToken,
       discordWebhook: discordWebhook ?? state.discordWebhook,
-      phoneNumber: phoneNumber ?? state.phoneNumber,
+      email: email ?? state.email,
     );
     final prefs = await SharedPreferences.getInstance();
     if (fcmToken != null) await prefs.setString(_keyFcmToken, fcmToken);
     if (discordWebhook != null) await prefs.setString(_keyDiscordWebhook, discordWebhook);
-    if (phoneNumber != null) await prefs.setString(_keyPhoneNumber, phoneNumber);
+    if (email != null) await prefs.setString(_keyEmail, email);
   }
 }
 

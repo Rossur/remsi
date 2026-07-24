@@ -34,7 +34,7 @@ class ApiService {
     List<String>? symbols,
     String? fcmToken,
     String? discordWebhook,
-    String? phoneNumber,
+    String? email,
     int? rsiPeriod,
     int? overbought,
     int? oversold,
@@ -44,7 +44,7 @@ class ApiService {
     if (symbols != null && symbols.isNotEmpty) queryParams['symbols'] = symbols.join(',');
     if (fcmToken != null && fcmToken.isNotEmpty) queryParams['fcmToken'] = fcmToken;
     if (discordWebhook != null && discordWebhook.isNotEmpty) queryParams['discordWebhook'] = discordWebhook;
-    if (phoneNumber != null && phoneNumber.isNotEmpty) queryParams['phoneNumber'] = phoneNumber;
+    if (email != null && email.isNotEmpty) queryParams['email'] = email;
     if (rsiPeriod != null) queryParams['rsiPeriod'] = rsiPeriod.toString();
     if (overbought != null) queryParams['overbought'] = overbought.toString();
     if (oversold != null) queryParams['oversold'] = oversold.toString();
@@ -106,7 +106,7 @@ final checkResultsProvider = FutureProvider<TickerCheckResponse>((ref) async {
     symbols: settings.watchlist,
     fcmToken: settings.fcmToken,
     discordWebhook: settings.discordWebhook,
-    phoneNumber: settings.phoneNumber,
+    email: settings.email,
     rsiPeriod: settings.rsiPeriod,
     overbought: settings.overbought,
     oversold: settings.oversold,

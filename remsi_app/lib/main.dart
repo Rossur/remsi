@@ -22,7 +22,11 @@ void main() async {
       provisional: false,
       sound: true,
     );
-    fcmToken = await messaging.getToken() ?? '';
+    // For web push notifications, replace with your public VAPID key from Firebase Console
+    // Project Settings -> Cloud Messaging -> Web Push certificates
+    fcmToken = await messaging.getToken(
+      vapidKey: "BIOBQx2Gh20-EAy4509z3u9Ia-gEC4QYqct10RSR1SZxhZnIkOmuFx55JUDX5ESW17_t4ohXGspkdfXheb-VqvA"
+    ) ?? '';
     debugPrint("Retrieved FCM Token: $fcmToken");
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {

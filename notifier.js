@@ -346,7 +346,12 @@ export async function dispatchAlert({ ticker, interval, rsiVal, confluenceScore,
     promises.push(sendDiscordAlert(discordWebhook, ticker, interval, rsiVal, confluenceScore, action));
   }
 
-  await Promise.all(promises);
+  const results = await Promise.allSettled(promises);
+  results.forEach((res, i) => {
+    if (res.status === 'rejected') {
+      console.error(`[Dispatch Channel ${i}] Failed:`, res.reason?.message || res.reason);
+    }
+  });
 }
 
 // ── Backward Compatibility ──────────────────────────────────────────────────

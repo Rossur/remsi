@@ -170,7 +170,7 @@ class HistoryParams {
 }
 
 // Riverpod Family FutureProvider for details and charts
-final historyProvider = FutureProvider.family<HistoryResponse, HistoryParams>((ref, params) async {
+final historyProvider = FutureProvider.family<HistoryResponse, HistoryParams>((ref, HistoryParams params) async {
   final api = ref.watch(apiServiceProvider);
   return api.fetchHistory(
     symbol: params.symbol,

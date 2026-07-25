@@ -10,8 +10,16 @@ void main() async {
 
   String fcmToken = '';
   try {
-    // Graceful initialization to prevent crashes on non-configured environments
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyAkAqpl4GmxgqjXI0LQ1mw6hWNliJkhtPw",
+        appId: "1:621710502960:web:403efe14e54b3ae37911f5",
+        messagingSenderId: "621710502960",
+        projectId: "remsi00",
+        authDomain: "remsi00.firebaseapp.com",
+        storageBucket: "remsi00.firebasestorage.app",
+      ),
+    );
     final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission(
       alert: true,

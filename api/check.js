@@ -134,15 +134,19 @@ export default async function handler(req, res) {
               action,
             };
 
+            let enqueued = false;
+
             // 1. Send to subscribers watching this ticker (cron case)
             for (const sub of subscribers) {
-              if (sub.tickers.includes(ticker.symbol)) {
+              // If sub has empty watchlist or explicitly includes this symbol
+              if (!sub.tickers || sub.tickers.length === 0 || sub.tickers.includes(ticker.symbol)) {
                 await enqueueAlert({
                   ...alertBase,
-                  fcmToken: sub.fcmToken,
-                  discordWebhook: sub.discordWebhook || null,
-                  email: sub.email || null,
+                  fcmToken: sub.fcmToken || process.env.DEFAULT_FCM_TOKEN || null,
+                  discordWebhook: sub.discordWebhook || process.env.DEFAULT_DISCORD_WEBHOOK || process.env.DISCORD_WEBHOOK || null,
+                  email: sub.email || process.env.DEFAULT_EMAIL || null,
                 });
+                enqueued = true;
               }
             }
 
@@ -151,14 +155,14 @@ export default async function handler(req, res) {
               await enqueueAlert({
                 ...alertBase,
                 fcmToken: manualFcmToken,
-                discordWebhook: manualDiscordWebhook,
-                email: manualEmail,
+                discordWebhook: manualDiscordWebhook || process.env.DEFAULT_DISCORD_WEBHOOK || process.env.DISCORD_WEBHOOK || null,
+                email: manualEmail || process.env.DEFAULT_EMAIL || null,
               });
+              enqueued = true;
             }
 
-            // 3. Fallback to env-var defaults if no subscribers and no manual targets
-            const hasAnyTarget = subscribers.length > 0 || manualFcmToken || manualDiscordWebhook || manualEmail;
-            if (!hasAnyTarget && isAuthorizedCron) {
+            // 3. Fallback: Always dispatch to default system channels if no target matched
+            if (!enqueued && isAuthorizedCron) {
               await enqueueAlert({
                 ...alertBase,
                 fcmToken: process.env.DEFAULT_FCM_TOKEN || null,

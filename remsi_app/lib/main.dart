@@ -58,9 +58,15 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (initialFcmToken.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         ref.read(settingsProvider.notifier).updateNotifierSettings(
           fcmToken: initialFcmToken,
+        );
+        final api = ref.read(apiServiceProvider);
+        final watchlist = ref.read(settingsProvider).watchlist;
+        await api.subscribeDevice(
+          fcmToken: initialFcmToken,
+          tickers: watchlist,
         );
       });
     }

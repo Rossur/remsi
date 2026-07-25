@@ -91,6 +91,26 @@ class ApiService {
     } catch (e) {
       throw Exception('Network error fetching history: $e');
     }
+  // Registers device FCM token and watchlist in Upstash Redis via /api/subscribe
+  Future<bool> subscribeDevice({
+    required String fcmToken,
+    List<String>? tickers,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/subscribe');
+    try {
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'fcmToken': fcmToken,
+          if (tickers != null && tickers.isNotEmpty) 'tickers': tickers,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error registering subscriber: $e');
+      return false;
+    }
   }
 }
 

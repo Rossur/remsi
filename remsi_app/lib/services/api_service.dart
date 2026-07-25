@@ -9,19 +9,14 @@ import 'settings_provider.dart';
 // Helper to resolve the correct backend API URL dynamically
 String getBaseUrl() {
   if (kIsWeb) {
-    // Uri.base.origin works perfectly on Flutter Web without dart:html imports
     final origin = Uri.base.origin;
-    // In local development, Vercel dev usually runs on port 3000 or the local node server runs on 3000
     if (origin.contains('localhost:')) {
-      // If the flutter web is running on a different local port (e.g. 5555),
-      // we target the standard local server at port 3000
       if (!origin.contains(':3000')) {
         return 'http://localhost:3000';
       }
     }
     return origin;
   }
-  // Production fallback for mobile native compilation (iOS/Android)
   return 'https://remsi-omega.vercel.app';
 }
 
@@ -91,6 +86,8 @@ class ApiService {
     } catch (e) {
       throw Exception('Network error fetching history: $e');
     }
+  }
+
   // Registers device FCM token and watchlist in Upstash Redis via /api/subscribe
   Future<bool> subscribeDevice({
     required String fcmToken,
@@ -113,25 +110,6 @@ class ApiService {
     }
   }
 }
-
-// Riverpod Provider for ApiService
-final apiServiceProvider = Provider((ref) => ApiService());
-
-// Riverpod FutureProvider for check overview
-final checkResultsProvider = FutureProvider<TickerCheckResponse>((ref) async {
-  final api = ref.watch(apiServiceProvider);
-  final settings = ref.watch(settingsProvider);
-  return api.fetchCheckResults(
-    secret: settings.cronSecret,
-    symbols: settings.watchlist,
-    fcmToken: settings.fcmToken,
-    discordWebhook: settings.discordWebhook,
-    email: settings.email,
-    rsiPeriod: settings.rsiPeriod,
-    overbought: settings.overbought,
-    oversold: settings.oversold,
-  );
-});
 
 // Parameter class for fetching history dynamically
 class HistoryParams {
@@ -169,8 +147,27 @@ class HistoryParams {
       oversold.hashCode;
 }
 
+// Riverpod Provider for ApiService
+final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+
+// Riverpod FutureProvider for check overview
+final checkResultsProvider = FutureProvider<TickerCheckResponse>((ref) async {
+  final api = ref.watch(apiServiceProvider);
+  final settings = ref.watch(settingsProvider);
+  return api.fetchCheckResults(
+    secret: settings.cronSecret,
+    symbols: settings.watchlist,
+    fcmToken: settings.fcmToken,
+    discordWebhook: settings.discordWebhook,
+    email: settings.email,
+    rsiPeriod: settings.rsiPeriod,
+    overbought: settings.overbought,
+    oversold: settings.oversold,
+  );
+});
+
 // Riverpod Family FutureProvider for details and charts
-final historyProvider = FutureProvider.family<HistoryResponse, HistoryParams>((ref, HistoryParams params) async {
+final historyProvider = FutureProvider.family<HistoryResponse, HistoryParams>((ref, params) async {
   final api = ref.watch(apiServiceProvider);
   return api.fetchHistory(
     symbol: params.symbol,

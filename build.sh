@@ -39,5 +39,6 @@ fi
 # 2. Copy the compiled Flutter Web PWA to the /app/ subfolder
 mkdir -p dist/app
 cp -r remsi_app/build/web/* dist/app/
+cp remsi_app/web/firebase-messaging-sw.js dist/
 
 echo "=== [BUILD] Success! ==="
